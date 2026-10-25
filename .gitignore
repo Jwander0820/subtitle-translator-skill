@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+
+# Local work materials; the public project contains the reusable skill only.
+*.srt
+*.ass
+*.mkv
+*.mp4
+*.wav
+*.asr-run/
+.venv-asr/
+*.translation.txt
+subtitle-context*.md
+user-glossary*.md
+*.unresolved.md
