@@ -1,14 +1,22 @@
 ---
 name: subtitle-translator
-description: Translate SRT or ASS subtitles with consistent terminology, cross-episode context, bilingual output, and source-based checks. Extract local-video text subtitles or generate source-language subtitles with local speech recognition when usable text subtitles are absent, then translate. Also apply glossary revisions or video-matching filenames. No hard-subtitle OCR.
+description: Translate SRT or ASS subtitles with consistent terminology, cross-episode context, bilingual output, and source-based checks. Extract local-video text subtitles or generate source-language subtitles with local speech recognition when usable text subtitles are absent, then translate. Also apply glossary revisions or video-matching filenames. Use when asked to translate, localize, or make bilingual subtitles from .srt/.ass files or local video/audio, in any language (e.g. 翻譯字幕, 字幕翻訳). No hard-subtitle OCR.
 license: MIT
 ---
 
 # Subtitle Translator
 
-Translate faithfully and naturally in the user's agent, using its available models and tools. Support existing SRT/ASS, local-video text-subtitle extraction, local speech transcription before translation, later glossary corrections, and requested filename changes. Video downloading and OCR (including hard subtitles) are outside this workflow. Establish ASR segmentation/timing before translation; retiming an existing subtitle remains a separate task.
+Give the user a usable translation when none exists, in the user's agent with its available models and tools. A good first pass delivered simply beats a perfect one never finished: keep checks proportionate and state what was not checked. Support existing SRT/ASS, local-video text-subtitle extraction, local speech transcription before translation, later glossary corrections, and requested filename changes. Video downloading and OCR (including hard subtitles) are outside this workflow; retiming an existing subtitle is a separate task.
 
 **Preserve meaning first, express it naturally, and refine style only when doing so does not add, remove, or distort information.**
+
+## Workflow at a glance
+
+1. Establish the task: source, target locale, presentation, and work context.
+2. Obtain a source: supplied subtitle, else an extracted text track ([formats.md](references/formats.md)), else local ASR with the helper's defaults and a quick flag check ([transcription.md](references/transcription.md)).
+3. Bind a cue map to that source before translating. The optional helper ([tooling.md](references/tooling.md)) creates it with `prepare`, merges translated batches with `fill`, and lists gaps with `status`.
+4. Translate in batches with continuity, then review against the source.
+5. `build`/`validate` (or equivalent checks), deliver files, and report which checks actually ran.
 
 ## Establish the task
 
@@ -16,14 +24,14 @@ Read the request, supplied files, and matching work context before asking questi
 
 - Resolve the source file, work/edition, episode, source language, target locale, and presentation. Follow current instructions, then confirmed context; conversation language alone is insufficient to choose the target. Reuse presentation preferences across episodes of the same work. Otherwise ask for translation only, translation above source, or source above translation. This is text order inside each cue, not screen positioning.
 - Inspect the actual files. A conflicting episode number and filename needs clarification; read-only inspection can continue while the answer is pending. A clear follow-up for the next episode does not require another confirmation of established preferences.
-- For local video, or ASS preservation, read [formats.md](references/formats.md). Select embedded tracks using each file's current metadata; never reuse a previous episode's stream index blindly. CC/SDH is a content category, independent of ASS/SRT format.
+- For local video, or ASS preservation, read [formats.md](references/formats.md). Video work uses the media helper, which needs a project-local Python environment set up as described in [tooling.md](references/tooling.md); FFmpeg is optional and installed only when a subtitle track needs converting. Select embedded tracks using each file's current metadata; never reuse a previous episode's stream index blindly. CC/SDH is a content category, independent of ASS/SRT format.
 - Prefer a supplied matching subtitle or usable full-dialogue text track over ASR. If none exists, read [transcription.md](references/transcription.md) and generate a source-language SRT locally before continuing below. A failed/missing probe is not proof of absent subtitles. Image-only tracks and hard subtitles are not extracted by ASR: disclose that audio transcription covers audible speech only, and resolve any request for exact onscreen text separately.
 - Record format, source fingerprint, cue count/order, IDs or ASS event ordinals, timestamps, and formatting baseline. Keep the video and original subtitles intact. Preserve the requested format; use ASS as the master when its layout matters. Report input defects rather than silently fixing timelines.
-- Default to budget-first: use available capable resources and focus extra review on difficult passages. Quality-first adds a complete source-to-translation pass; highest-quality also revisits unresolved passages and cross-episode consistency. These are effort preferences, not accuracy guarantees. Switch models only if the host actually supports it; never claim an unperformed switch. No new API key or mandatory external translation service is needed.
+- Default to budget-first: use available capable resources and focus extra review on difficult passages. Quality-first adds a complete source-to-translation pass; highest-quality also revisits unresolved passages and cross-episode consistency. These are translation-review preferences, not accuracy guarantees; the ASR helper's defaults already pick the tested best-balance recognition settings. Switch models only if the host actually supports it; never claim an unperformed switch. No new API key or mandatory external translation service is needed.
 
 Ask only for unresolved information that materially affects the result, combining questions when useful. Continue independent work while awaiting answers; do not invent approval or answers.
 
-For ASR inputs, keep the raw recognition artifacts and a separate reviewed source when corrections or segmentation are needed. Freeze that reviewed SRT and fingerprint before creating the translation map. Do not present model-generated source text as official captions, SDH, or verified listening. Report ASR review separately from translation review; a faithful translation can still inherit a transcription error.
+For ASR inputs, keep the run directory, make only the quick fixes the flags point to, and translate from that SRT. Present it as an unchecked ASR draft, not official captions or verified listening: a faithful translation can still inherit a transcription error.
 
 ## Reuse terminology and work context
 
@@ -39,7 +47,7 @@ Research only relevant gaps and conflicts, starting with official work informati
 
 Understand the whole input before finalizing local decisions. For long files, read manageable portions and retain compact continuity notes. Use flexible batches with nearby preceding/following source and confirmed preceding translations when helpful. Only emit the current target range: context windows may overlap, output IDs may not.
 
-Maintain a cue-to-translation map bound to the source fingerprint. Save intermediate results and resume missing ranges instead of retranslating everything. A list of nonempty lines without IDs is fragile: do not rely solely on line counts to prove alignment.
+Maintain a cue-to-translation map bound to the source fingerprint. Save each finished batch and resume missing ranges instead of retranslating everything; write only cue IDs and translations per batch rather than re-emitting source text. A list of nonempty lines without IDs is fragile: do not rely solely on line counts to prove alignment.
 
 Nearby cues may belong to different scenes or speakers. Respect uncertainty; subtitles alone do not establish visual cuts, speakers, gender, or whether voices are live dialogue, recordings, memories, or internal speech. Preserve concurrent speech and meaningful source repetitions instead of deduplicating them mechanically.
 
@@ -75,7 +83,7 @@ Write a separate UTF-8 output unless the user is explicitly revising an existing
 
 Check the complete result for missing/duplicate cues, empty translations, timestamp changes, lost/broken tags, bilingual order, glossary consistency, and unfinished/error placeholders. Source overlaps, punctuation-only source cues, and genuine repetitions need inspection rather than automatic deletion. Layout can grow substantially with bilingual text; rendering/player checks should include long and positioned cues when available.
 
-An optional Python 3.10+ standard-library helper, [subtitle_io.py](scripts/subtitle_io.py), prepares source-bound JSON maps, builds outputs, and validates structure. Read [tooling.md](references/tooling.md) before using it. It handles SRT and a deliberately limited ASS subset, refusing unsupported markup. Other tools or manual methods remain valid; report the actual verification scope.
+An optional Python 3.10+ standard-library helper, [subtitle_io.py](scripts/subtitle_io.py), prepares source-bound JSON maps, merges translation batches, builds outputs, and validates structure. It also raises review flags for reading speed, line width, copied source, and glossary gaps; these are prompts for judgment, not verdicts. Read [tooling.md](references/tooling.md) before using it. It interprets plain SRT and a deliberately limited ASS subset; cues with other markup pass through as raw cues whose complete text you write. Other tools or manual methods remain valid; report the actual verification scope.
 
 Keep these claims separate:
 

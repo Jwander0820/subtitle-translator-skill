@@ -2,7 +2,7 @@
 
 An [Agent Skill](https://agentskills.io/specification) for translating SRT and ASS subtitles with consistent terminology across episodes, bilingual output, and checks against the source. It can extract an embedded text-subtitle track from a local video, or use local speech recognition to generate source subtitles when usable text subtitles are absent, then translate them.
 
-The instructions are written in English but work with any language pair. Translation runs on the model and tools already in your AI agent; no translation service, API key, or integration is bundled.
+Its aim is a usable translation when none exists: a good first pass delivered simply, not a professional finished subtitle. The instructions are written in English but work with any language pair. Translation runs on the model and tools already in your AI agent; no translation service, API key, or integration is bundled.
 
 ## Quick start
 
@@ -27,13 +27,13 @@ The result is a new file, `episode-05.zh-TW+ja.srt`; the original stays untouche
 - Preserves SRT cue IDs and timing, or ASS event fields, styles, and positioning.
 - Produces translation only, translation above source, or source above translation.
 - Checks each video's current subtitle-track metadata before selecting a language and CC/SDH track.
-- When no usable text subtitles exist, selects the audio track and uses optional local faster-whisper transcription for Japanese, English, or other supported languages, followed by source review and translation.
+- When no usable text subtitles exist, selects the audio track, transcribes it locally with faster-whisper using tested default settings, removes obvious recognition junk, and translates the result.
 - Uses neighboring dialogue to understand fragments while preserving meaningful pauses, interruptions, and reveals.
 - Gives your supplied glossary priority, keeps names consistent across episodes, and can apply a later glossary to existing translations.
 - Saves progress in source-bound cue maps and reports structural, semantic, and playback checks separately.
 - Renames finished outputs to match video filenames on request, checking for collisions and preserving content.
 
-Out of scope: video downloading, OCR (including hard/burned-in subtitles), and retiming existing subtitles. New ASR source segmentation/timing is established before translation. ASS stays ASS when styling matters; converting to SRT is an optional extra step that can lose formatting.
+Out of scope: video downloading, OCR (including hard/burned-in subtitles), and retiming existing subtitles. ASS stays ASS when styling matters; converting to SRT is an optional extra step that can lose formatting.
 
 ## Install
 
@@ -53,7 +53,7 @@ Ask your agent to use **Subtitle Translator**, or invoke `$subtitle-translator` 
 
 > Extract the Japanese SDH track from `episode-06.mkv`, then translate it into Traditional Chinese for Taiwan. Keep ASS, with Chinese above Japanese. Reuse the series glossary.
 
-> This Japanese video has no text subtitles. Generate Japanese subtitles locally with faster-whisper, review suspicious passages, then translate into Traditional Chinese for Taiwan with Chinese above Japanese.
+> This Japanese video has no text subtitles. Transcribe it locally, then translate into Traditional Chinese for Taiwan with Chinese above Japanese.
 
 > Transcribe this English interview locally, then produce translated subtitles. Use the existing CPU environment and cached model.
 
@@ -77,18 +77,28 @@ Keep episodes of the same work in one folder. The agent maintains a compact `sub
 
 By default, cue count, order, and timing stay the same; meaning may be redistributed locally within a continuous utterance. Source overlaps and genuine repetitions are kept for inspection.
 
-### Optional tools
+### What gets installed
 
-Nothing needs to be installed to use the instructions. Extracting from video needs a tool such as FFmpeg/FFprobe, which this skill does not bundle. Image-based tracks (PGS/DVD) need a separate OCR workflow.
+Translating an existing SRT/ASS needs nothing beyond your agent; the optional map helper uses Python 3.10+ if it is available. Video work uses one project-local Python environment that the agent creates beside your files after asking; nothing is installed system-wide, and deleting `.venv-asr` removes it all.
 
-For speech transcription, the optional `scripts/transcribe_audio.py` requires faster-whisper in a suitable Python environment and model weights. It accepts a selected mono 16 kHz PCM WAV and writes source SRT, raw timed segments, and ASR metadata/review flags to a new directory. The baseline is multilingual `small` on CPU with `int8`; hardware and audio quality determine suitable settings. First use may download a model. No transcription API key is required; cloud-agent translation still processes subtitle text through that service. See [the transcription workflow](skills/subtitle-translator/references/transcription.md) for audio selection, installation, offsets, source review, and handoff.
+| Needed for | Item | Size |
+| --- | --- | --- |
+| Everything below | Python 3.10+ | — |
+| Reading video tracks, copying text subtitles, transcription | `faster-whisper` (pip; includes PyAV, FFmpeg's libraries for Python, so **FFmpeg itself is not needed**) | ~150 MB |
+| Transcription | `turbo` model, downloaded on first use into `.venv-asr/whisper-models` | ~1.6 GB |
+| Faster transcription (optional, NVIDIA GPU) | CUDA 12 cuBLAS/cuDNN (pip) | ~1.3 GB |
+| Converting MP4 `mov_text` or WebVTT subtitle tracks (optional, only when met) | FFmpeg, from the system or `imageio-ffmpeg` (pip) | ~100 MB |
 
-The optional helper `scripts/subtitle_io.py` (Python 3.10+, standard library only) prepares a JSON translation map, assembles completed translations, and validates the output against the source, map, and layout. It does **not** translate or call any service. It supports plain SRT and ASS with plain text, hard line breaks, and leading alignment overrides, and refuses advanced styling, drawing, karaoke, or other markup that needs format-aware handling. See `references/tooling.md` in the skill folder.
+Image-based tracks (PGS/DVD) and burned-in subtitles need OCR, which is out of scope.
+
+`scripts/transcribe_audio.py` lists a video's tracks, copies ASS/SRT subtitle tracks unchanged, and transcribes the original-language audio straight from the video into a draft SRT split at sentence boundaries, with review flags for likely hallucinations and timing problems. Its defaults were picked on Japanese anime episodes: model `turbo` everywhere (more accurate than `small`, and faster even on CPU), GPU when it works and otherwise CPU, no VAD (it dropped dialogue under music), and independent decoding windows (fewer repetition loops). A 24-minute episode took about 1 minute on an RTX 3090 and 7 minutes on a 16-core CPU, with the same dialogue coverage. No transcription API key is required; cloud-agent translation still processes subtitle text through that service. See [the transcription workflow](skills/subtitle-translator/references/transcription.md).
+
+`scripts/subtitle_io.py` (Python 3.10+, standard library only) prepares a JSON translation map, merges translated batches, assembles the output, and validates it against the source, map, and layout. It also flags fast reading speed, wide lines, copied source text, and glossary gaps for review. It does **not** translate or call any service. It interprets plain SRT and ASS with plain text, hard line breaks, and leading alignment overrides; cues with other styling, drawing, or karaoke markup pass through as raw cues that the agent writes in full. See [the helper reference](skills/subtitle-translator/references/tooling.md).
 
 ## Checks
 
 - **Structural:** IDs/order, timing, source-language preservation, non-text fields, formatting, missing cues, and unfinished placeholders.
-- **ASR source review, when applicable:** recognition errors, suspicious gaps/repetitions, names/numbers, segmentation, and alignment with audio. Model scores only flag candidates for review.
+- **ASR quick check, when applicable:** remove flagged hallucinations and unwanted song lyrics; obvious misrecognitions are read by meaning during translation. No listening pass by default.
 - **Semantic:** the translation compared with the source, including terminology, negation, uncertainty, references, and timing of reveals.
 - **Playback/AV:** fonts, readability, positioning/collisions, and alignment with the actual video/audio.
 
@@ -98,14 +108,8 @@ A file that parses is not proof of an accurate translation or a good bilingual l
 
 - Used locally in Codex for six complete Japanese-to-Traditional-Chinese ASS episodes, followed by a glossary revision and video-matching renames. This is operational experience, not an accuracy benchmark, and those episodes have not had a full playback review.
 - Other language pairs and hosts are untested. Install paths were checked against each host's documentation on 2026-10-25.
-- The new ASR helper has synthetic integration tests; real Japanese/English recordings, model inference, and GPU performance have not yet been validated. Its generated SRT is a draft, not verified captions or SDH.
+- Speech recognition produces draft subtitles, not verified captions or SDH. On two anime episodes checked against their burned-in subtitles, the default settings covered about 90% of dialogue lines; misses were mostly speech under loud music, background voices, and homophones.
 - With a cloud model, subtitle text and context are processed by that service under its terms. The skill contains no credentials or personal subtitle material.
-
-## Tests
-
-```bash
-python -m unittest discover -s tests -v
-```
 
 ## License
 

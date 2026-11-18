@@ -8,7 +8,7 @@ Copy into `subtitle-context.<target-locale>.md` beside the task files. Keep each
 ## Identity
 - Work / edition: <title, season, release or distributor>
 - Source language and track: <e.g. ja, SDH, ASS>
-- Source provenance: <supplied / extracted text / ASR; for ASR link run metadata and frozen reviewed source, with review status>
+- Source provenance: <supplied / extracted text / ASR; for ASR, the run directory and model>
 
 ## Presentation
 - Layout: <translation only | translation above source | source above translation>
