@@ -73,7 +73,9 @@ def list_streams(path):
         rows = []
         for stream in container.streams:
             metadata = stream.metadata or {}
-            row = {"index": stream.index, "type": stream.type, "codec": stream.codec_context.name,
+            # Attachment streams (e.g. fonts muxed with ASS) have no codec context.
+            row = {"index": stream.index, "type": stream.type,
+                   "codec": getattr(stream.codec_context, "name", None),
                    "language": metadata.get("language"), "title": metadata.get("title"),
                    "start_seconds": seconds_of(stream, stream.start_time)}
             if stream.type == "audio":

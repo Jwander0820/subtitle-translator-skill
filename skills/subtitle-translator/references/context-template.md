@@ -19,7 +19,7 @@ Copy into `subtitle-context.<target-locale>.md` beside the task files. Keep each
 ## Names and terms (active)
 | Source | Target | Basis | Notes |
 | --- | --- | --- | --- |
-| <name or term> | <translation> | glossary / official / provisional | <alias, scope> |
+| <name or term> | <translation> | glossary / official / provisional | <alias, scope, common ASR misspellings> |
 
 ## Superseded mappings
 - <old> → <new> (<date>, <reason>)

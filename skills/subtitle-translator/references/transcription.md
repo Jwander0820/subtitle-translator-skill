@@ -59,6 +59,6 @@ Skim the flags in `asr.json` and fix only what is clearly wrong, in a copy such 
 - `literal_markup_characters` (such as `>>`): remove the characters.
 - `very_short_cue_check_timing`, `word_timing_repaired`, `out_of_order_timing`, `broken_characters`: timing or text may be off; fine to leave in a draft.
 
-Then translate with the normal workflow (`subtitle_io.py prepare` on that SRT). While translating, read obvious misrecognitions by their meaning (for example 単身不妊中 → 単身赴任中) and keep the Japanese unchanged in bilingual output. List removed cues and doubtful readings in `<output-basename>.unresolved.md`.
+Then continue with the normal workflow: create or update the work context file (names and terms; ASR often garbles names, so research them), then `subtitle_io.py prepare` on that SRT. While translating, read obvious misrecognitions by their meaning (for example 単身不妊中 → 単身赴任中) and keep the Japanese unchanged in bilingual output. List removed cues and doubtful readings in `<output-basename>.unresolved.md`.
 
 Tell the user what to expect: dialogue under loud music, background voices, and homophones are the usual misses; songs are not subtitled unless asked; the source was not checked by listening.
